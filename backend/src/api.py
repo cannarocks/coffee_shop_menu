@@ -1,3 +1,4 @@
+from crypt import methods
 import os
 from flask import Flask, request, jsonify, abort
 from sqlalchemy import exc
@@ -12,7 +13,7 @@ setup_db(app)
 CORS(app)
 
 '''
-@TODO uncomment the following line to initialize the datbase
+@TODO uncomment the following line to initialize the database
 !! NOTE THIS WILL DROP ALL RECORDS AND START YOUR DB FROM SCRATCH
 !! NOTE THIS MUST BE UNCOMMENTED ON FIRST RUN
 !! Running this function will add one
@@ -38,7 +39,6 @@ def get_drinks():
 
 
 '''
-@TODO implement endpoint
     GET /drinks-detail
         it should require the 'get:drinks-detail' permission
         it should contain the drink.long() data representation
@@ -57,7 +57,6 @@ def get_drinks_detail(payload):
 
 
 '''
-@TODO implement endpoint
     POST /drinks
         it should create a new row in the drinks table
         it should require the 'post:drinks' permission
@@ -67,8 +66,38 @@ def get_drinks_detail(payload):
 '''
 
 
+@app.route('/drinks', methods=['POST'])
+@requires_auth('post:drinks')
+def add_new_drink(payload):
+    # Check if the request is valid
+    if not request.is_json:
+        abort(400)
+
+    # Get the request data
+    req_data = request.get_json()
+
+    # Check if the request data is valid
+    if not ('title' in req_data and 'recipe' in req_data):
+        abort(400)
+
+    # Create a new drink
+    new_drink = Drink(title=req_data['title'],
+                      recipe=json.dumps(req_data['recipe']))
+
+    # Try to insert the drink into the database
+    try:
+        new_drink.insert()
+    except:
+        abort(422)
+
+    # Return the new drink
+    return jsonify({
+        'success': True,
+        'drinks': [new_drink.long()]
+    }), 200
+
+
 '''
-@TODO implement endpoint
     PATCH /drinks/<id>
         where <id> is the existing model id
         it should respond with a 404 error if <id> is not found
@@ -80,8 +109,45 @@ def get_drinks_detail(payload):
 '''
 
 
+@app.route('/drinks/<int:drink_id>', methods=['PATCH'])
+@requires_auth('patch:drinks')
+def update_drink(payload, drink_id):
+    # Check if the request is valid
+    if not request.is_json:
+        abort(400)
+
+    # Get the request data
+    req_data = request.get_json()
+
+    # Check if the request data is valid
+    if not ('title' in req_data and 'recipe' in req_data):
+        abort(400)
+
+    # Get the drink
+    drink = Drink.query.filter(Drink.id == drink_id).one_or_none()
+
+    # Check if the drink exists
+    if not drink:
+        abort(404)
+
+    # Update the drink
+    drink.title = req_data['title']
+    drink.recipe = json.dumps(req_data['recipe'])
+
+    # Try to update the drink into the database
+    try:
+        drink.update()
+    except:
+        abort(422)
+
+    # Return the drink
+    return jsonify({
+        'success': True,
+        'drinks':   [drink.long()]
+    }), 200
+
+
 '''
-@TODO implement endpoint
     DELETE /drinks/<id>
         where <id> is the existing model id
         it should respond with a 404 error if <id> is not found
@@ -92,9 +158,32 @@ def get_drinks_detail(payload):
 '''
 
 
+@app.route('/drinks/<int:drink_id>', methods=['DELETE'])
+@requires_auth('delete:drinks')
+def delete_drink(payload, drink_id):
+    # Check if drink exists
+    drink = Drink.query.filter(Drink.id == drink_id).one_or_none()
+
+    # Check if the drink exists
+    if not drink:
+        abort(404)
+
+    # Delete the drink
+    try:
+        drink.delete()
+    except:
+        abort(422)
+
+    # Return the deleted drink
+    return jsonify({
+        'success': True,
+        'delete': drink_id
+    }), 200
+
+
 # Error Handling
 '''
-Example error handling for unprocessable entity
+Error handling for unprocessable entity
 '''
 
 
@@ -108,15 +197,10 @@ def unprocessable(error):
 
 
 '''
-@TODO implement error handlers using the @app.errorhandler(error) decorator
-    each error handler should return (with approprate messages):
-             jsonify({
-                    "success": False,
-                    "error": 404,
-                    "message": "resource not found"
-                    }), 404
-
+Error handling for not found entity
 '''
+
+
 @app.errorhandler(404)
 def not_found_error(error):
     return jsonify({
@@ -126,17 +210,13 @@ def not_found_error(error):
     }), 404
 
 
-
 @app.errorhandler(401)
 def not_authorized(error):
     return jsonify({
         "success": False,
         "error": 401,
-        "message": "not authorized"
+        "message": "Something went wrong: {error}".format(error=error)
     }), 401
-
-
-
 
 
 @app.errorhandler(500)
@@ -144,7 +224,7 @@ def internal_error(error):
     return jsonify({
         "success": False,
         "error": 500,
-        "message": "Internal server error, {error}".format(error=error)
+        "message": "Something went wrong: {error}".format(error=error)
     }), 500
 
 
@@ -153,12 +233,12 @@ def not_allowed_error(error):
     return jsonify({
         "success": False,
         "error": 405,
-        "message": "Method not allowed, {error}".format(error=error)
+        "message": "Something went wrong: {error}".format(error=error)
     }), 405
 
 
 '''
-@TODO implement error handler for AuthError
+error handler for AuthError
     error handler should conform to general task above
 '''
 
