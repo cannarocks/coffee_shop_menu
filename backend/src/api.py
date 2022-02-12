@@ -120,7 +120,7 @@ def update_drink(payload, drink_id):
     req_data = request.get_json()
 
     # Check if the request data is valid
-    if not ('title' in req_data and 'recipe' in req_data):
+    if not ('title' in req_data) and not ('recipe' in req_data):
         abort(400)
 
     # Get the drink
@@ -131,8 +131,11 @@ def update_drink(payload, drink_id):
         abort(404)
 
     # Update the drink
-    drink.title = req_data['title']
-    drink.recipe = json.dumps(req_data['recipe'])
+    if 'title' in req_data:
+        drink.title = req_data['title']
+    
+    if 'recipe' in req_data:
+        drink.recipe = json.dumps(req_data['recipe'])
 
     # Try to update the drink into the database
     try:
